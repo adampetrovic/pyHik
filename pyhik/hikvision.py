@@ -34,6 +34,7 @@ except ImportError:
     dispatcher = None
 
 from pyhik.watchdog import Watchdog
+from pyhik.privacy import get_privacy_mode, set_privacy_mode
 from pyhik.constants import (
     DEFAULT_PORT, DEFAULT_RTSP_PORT, DEFAULT_HEADERS, XML_NAMESPACE, SENSOR_MAP,
     CAM_DEVICE, NVR_DEVICE, CONNECT_TIMEOUT, READ_TIMEOUT, SNAPSHOT_TIMEOUT,
@@ -122,6 +123,7 @@ class HikCamera(object):
         self.device_type = None
         self.motion_detection = None
         self._motion_detection_xml = None
+        self._privacy_lock = threading.Lock()
 
         self.root_url = urlunparse((
             scheme, f'{self.host}:{effective_port}', '', '', '', ''
@@ -188,6 +190,25 @@ class HikCamera(object):
     def current_motion_detection_state(self):
         """Return current state of motion detection property"""
         return self.motion_detection
+
+    def _privacy_session(self):
+        """Create an isolated session for concurrent channel configuration calls."""
+        session = requests.Session()
+        session.verify = self.hik_request.verify
+        session.auth = (HTTPDigestAuth(self.usr, self.pwd)
+                        if isinstance(self.hik_request.auth, HTTPDigestAuth)
+                        else self.hik_request.auth)
+        return session
+
+    def get_privacy_mode(self, channel=1):
+        """Return full-frame privacy state, or None if unsupported."""
+        with self._privacy_lock, self._privacy_session() as session:
+            return get_privacy_mode(session, self.root_url, channel)
+
+    def set_privacy_mode(self, channel, enabled):
+        """Set full-frame privacy mode and return the verified device state."""
+        with self._privacy_lock, self._privacy_session() as session:
+            return set_privacy_mode(session, self.root_url, channel, enabled)
 
     @property
     def stream_connected(self):

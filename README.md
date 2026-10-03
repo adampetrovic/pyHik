@@ -63,12 +63,31 @@ camera.disconnect()
 * `disconnect()` - close the event stream session and stop the processing thread
 * `get_channels()` - list available channels
 * `get_motion_detection()` / `enable_motion_detection()` / `disable_motion_detection()` - read/toggle motion detection
+* `get_privacy_mode(channel=1)` - return full-frame video privacy state (`None` if the endpoint is unsupported)
+* `set_privacy_mode(channel, enabled)` - enable an opaque full-frame mask, or disable all privacy masking, with verified readback
 * `get_snapshot(channel=1)` - fetch a JPEG snapshot for a channel
 * `get_stream_url(channel=1, protocol='rtsp', stream_type=1)` - build an RTSP stream URL
 * `fetch_attributes(event, channel)` - get the state list for a specific sensor/channel
 * `get_recording_days(track_id, start_date, end_date)` - list days that have recordings
 * `search_recordings(track_id, start_time, end_time, max_results=100)` - search for recordings in a time range
 * `download_recording(playback_uri, output_stream=None, chunk_size=65536)` - download a recording found via `search_recordings`
+
+### Full-frame privacy
+
+Privacy controls use `/ISAPI/System/Video/inputs/channels/<channel>/privacyMask`.
+Enabling preserves existing partial regions and allocates a free region using the
+reported region-list size and normalized screen dimensions. A full-frame region
+remains configured after disabling; disabling sets the global mask flag false,
+including any pre-existing partial masks. This is video masking, not a camera
+shutdown or audio mute. A partial mask alone does not report full-frame privacy ON.
+
+Writes validate the ISAPI status and read back the mask state, dimensions and
+region contents. Invalid configurations, missing allocation information, no free
+region, rejected writes or unconfirmed state raise `pyhik.privacy.PrivacyMaskError`;
+HTTP and connection errors propagate as `requests` exceptions. Read and write
+transactions use isolated sessions and a device lock, separate from event streaming.
+The endpoint/region contract is firmware-specific; validate the resulting image
+on each supported model before relying on privacy in production.
 
 # Usage - Device control (`ISAPIClient`)
 
